@@ -107,17 +107,17 @@ end
 Object to contain intermediate variables and temporary arrays. Used for cleaner code in L0_reg
 """
 struct IHTVariable
-    b    :: DenseVector         # the statistical model, most will be 0
+    b    :: Vector{Float64}     # the statistical model, most will be 0
     b0   :: Vector{Float64}     # previous estimated model in the mm step
-    xb   :: DenseVector         # vector that holds x*b 
+    xb   :: Vector{Float64}     # vector that holds x*b 
     xb0  :: Vector{Float64}     # previous xb in the mm step
     xk   :: Matrix{Float64}     # the n by k subset of the design matrix x corresponding to non-0 elements of b
     gk   :: Vector{Float64}     # gk = df[idx] is a temporary array of length `k` that arises as part of the gradient calculations. I avoid doing full gradient calculations since most of `b` is zero.
     xgk  :: Vector{Float64}     # x * gk also part of the gradient calculation
     idx  :: BitArray{1}         # BitArray indices of nonzeroes in b for A_mul_B
     idx0 :: BitArray{1}         # previous iterate of idx
-    r    :: DenseVector         # n-vector of residuals
-    df   :: DenseVector         # the gradient: df = -x' * (y - xb)
+    r    :: Vector{Float64}     # n-vector of residuals
+    df   :: Vector{Float64}     # the gradient: df = -x' * (y - xb)
 
     # IHTVariable(b::DenseVector, b0::Vector{Float64}, xb::DenseVector, 
     #   xb0::Vector{Float64}, xk::Matrix{Float64}, gk::Vector{Float64}, 
@@ -156,6 +156,7 @@ function L0_reg(
     y        :: DenseVector, 
     k        :: Int;
     v        :: IHTVariable = IHTVariables(x, y, k),
+    mask_n   :: Vector{Int} = ones(Int, size(y)),
     tol      :: Float64 = 1e-4,
     max_iter :: Int     = 100,
     max_step :: Int     = 50,
@@ -184,30 +185,35 @@ function L0_reg(
     # initialize booleans
     converged = false             # scaled_norm < tol?
 
+    #this is the genotype matrix
+    snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
 
+    # update xb, r, and gradient
+    # initialize_xb_r_grad!(v, x, y, k, pids=pids)
+    if sum(v.idx) == 0
+        fill!(v.xb, 0.0)
+        copy!(v.r, y)
+        v.r[mask_n .== 0] = 0.0
+    else
+        #A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n, pids=pids)
+        A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n)
+        difference!(v.r, y, v.xb)
+        v.r[mask_n .== 0] = 0.0
+    end
 
-    hi = convert(Array{Float64,2}, x.snpmatrix)
+    # calculate the gradient
+    placehold = snpmatrix' * v.r 
 
-
-    fill!(v.df, randn())
     println(v.df)
-    fill!(v.b, rand())
+    println(snpmatrix)
 
-    x = v.b' * v.df
-
-    println("reached hereeeeeee")
-
-    fill!(v.b, x)
-
-    println(v.b)
-    
-
+    println(placehold)
 
 
 
     # hi = A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n)
 
-    return hi
+    return v.df
 end #function L0_reg
 
 #for testing purposes, keeping for future reference
