@@ -134,10 +134,10 @@ function IHTVariables(
     p    = x.snps
     # pids = procs(x)
     # V    = typeof(y)
-    b    = Vector{Float64}(p,) :: DenseVector #the statistical model
-    df   = Vector{Float64}(p,) :: DenseVector 
-    xb   = Vector{Float64}(n,) :: DenseVector #vector that holds x*b 
-    r    = Vector{Float64}(n,) :: DenseVector
+    b    = Vector{Float64}(p,) 
+    df   = Vector{Float64}(p,) 
+    xb   = Vector{Float64}(n,) 
+    r    = Vector{Float64}(n,) 
     b0   = zeros(Float64, p)
     xb0  = zeros(Float64, n)
     xk   = zeros(Float64, n, k)
@@ -153,7 +153,7 @@ end
 # """
 function L0_reg(
     x        :: SnpData,
-    y        :: DenseVector, 
+    y        :: Vector{Float64}, 
     k        :: Int;
     v        :: IHTVariable = IHTVariables(x, y, k),
     mask_n   :: Vector{Int} = ones(Int, size(y)),
