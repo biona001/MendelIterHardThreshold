@@ -74,7 +74,7 @@ function IterHardThreshold(control_file = ""; args...)
     # close(keyword["output_unit"])
     # cd(initial_directory)
     # return nothing
-end #function IHT
+end #function IterHardThreshold
 
 """
 This function performs IHT on GWAS data. The overall strategy: Make IHTVariables, use that to 
@@ -88,25 +88,10 @@ function iht_gwas(person::Person, snpdata::SnpData,
     return x
 end
 
-# """
-# The IHT step
-# """
-# function iht!{T <: Float64}(
-#     v     :: IHTVariables{T},
-#     x     :: AbstractMatrix{T},
-#     y     :: DenseVector{T},
-#     k     :: Int;
-#     pids  :: Vector{Int} = procs(x),
-#     iter  :: Int = 1,
-#     nstep :: Int = 50,
-# )
-#   return 1.0
-# end
-
 """
 Object to contain intermediate variables and temporary arrays. Used for cleaner code in L0_reg
 """
-struct IHTVariable
+type IHTVariable
     b    :: Vector{Float64}     # the statistical model, most will be 0
     b0   :: Vector{Float64}     # previous estimated model in the mm step
     xb   :: Vector{Float64}     # vector that holds x*b 
@@ -131,7 +116,7 @@ function IHTVariables(
     k :: Int64
 )
     n    = x.people
-    p    = x.snps
+    p    = x.snps + 1 #adding 1 because we need an intercept
     # pids = procs(x)
     # V    = typeof(y)
     b    = Vector{Float64}(p,) 
@@ -148,9 +133,9 @@ function IHTVariables(
     return IHTVariable(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
 end
 
-# """
-# Regression step
-# """
+"""
+Regression step
+"""
 function L0_reg(
     x        :: SnpData,
     y        :: Vector{Float64}, 
@@ -185,8 +170,9 @@ function L0_reg(
     # initialize booleans
     converged = false             # scaled_norm < tol?
 
-    #this is the genotype matrix
+    #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
     snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
+    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))]
 
     # update xb, r, and gradient
     # initialize_xb_r_grad!(v, x, y, k, pids=pids)
@@ -201,20 +187,34 @@ function L0_reg(
         v.r[mask_n .== 0] = 0.0
     end
 
-    # calculate the gradient
-    placehold = snpmatrix' * v.r 
+    for mm_iter = 1:max_iter
+        
+        # calculate the gradient
+        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # -X'(y - Xβ)
 
-    println(v.df)
-    println(snpmatrix)
+        (mu, mu_step_halving) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
-    println(placehold)
+        println(mu)
+        return mu
+    end
 
-
-
-    # hi = A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n)
 
     return v.df
 end #function L0_reg
+
+"""
+The IHT step
+"""
+function iht!(
+    v     :: IHTVariable,
+    x     :: Matrix{Float64},
+    y     :: Vector{Float64},
+    k     :: Int;
+    iter  :: Int = 1,
+    nstep :: Int = 50,
+)
+  return (12, 13)
+end
 
 #for testing purposes, keeping for future reference
 #taken from read_plink_data in data.jl in PLINK
