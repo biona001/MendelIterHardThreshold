@@ -3,7 +3,7 @@ export IHTVariable, IHTVariables
 """
 Object to contain intermediate variables and temporary arrays. Used for cleaner code in L0_reg
 """
-type IHTVariable
+struct IHTVariable
     b    :: Vector{Float64}     # the statistical model, most will be 0
     b0   :: Vector{Float64}     # previous estimated model in the mm step
     xb   :: Vector{Float64}     # vector that holds x*b 
@@ -44,3 +44,26 @@ function IHTVariables(
     idx0 = falses(p)
     return IHTVariable(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
 end
+
+#for testing purposes, keeping for future reference
+#taken from read_plink_data in data.jl in PLINK
+# function read_fam_file()
+#   #
+#   # read the FAM file
+#     #
+#     famfile = keyword["plink_input_basename"] * ".fam"
+#     Y = readdlm(famfile, ' ', header=false)
+#     #
+#     # check that the FAM file has six column
+#     #
+#     p = size(Y,2)
+#     p == 6 || throw(DimensionMismatch("FAM file does not have six columns, is it formatted correctly?"))
+#     #
+#     # in FAM file, the phenotype is the rightmost column 
+#     # initialize a SharedVector and fill it with the phenotype.
+#     # we cannot know for certain that Y is loaded as floating point
+#     # to be safe, explicitly convert the phenotype column to the correct type
+#     #
+#     y = convert(Vector, Y[:,end])
+#     return(y) 
+# end
