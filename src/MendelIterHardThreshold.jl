@@ -127,31 +127,35 @@ function L0_reg(
     # initialize booleans
     converged = false             # scaled_norm < tol?
 
+    #
     #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
+    #
     snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
     snpmatrix = [snpmatrix ones(size(snpmatrix, 1))]
 
-    # update xb, r, and gradient
-    # initialize_xb_r_grad!(v, x, y, k, pids=pids)
-    if sum(v.idx) == 0
-        fill!(v.xb, 0.0)
-        copy!(v.r, y)
-        v.r[mask_n .== 0] = 0.0
-    else
-        #A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n, pids=pids)
-        A_mul_B!(v.xb, x, v.b, v.idx, k, mask_n)
-        difference!(v.r, y, v.xb)
-        v.r[mask_n .== 0] = 0.0
-    end
+    #
+    # Begin IHT calculations
+    #
+    fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
+    copy!(v.r, y)    #redisual = y-Xβ = y
+
+    #compute the gradient once, and update v.xb to get the loop started
+    BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # save -X'(y - Xβ) to v.df
 
     for mm_iter = 1:max_iter
         
-        # calculate the gradient
-        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # -X'(y - Xβ)
+        # calculate the gradient ∇f(β)
+        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # save -X'(y - Xβ) to v.df
 
-        (mu, mu_step_halving) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
+        #calculate the step size μ 
+        (mu, mu_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
-        return mu_step_halving
+        # save values from previous iterate
+        copy!(v.b0, v.b)   # b0 = b
+        copy!(v.xb0, v.xb) # Xb0 = Xb
+        loss = next_loss
+
+        return mu_step
     end
 
 
@@ -159,7 +163,7 @@ function L0_reg(
 end #function L0_reg
 
 """
-The IHT step
+Calculates the IHT step size, and number of times line search was done. 
 """
 function iht!(
     v     :: IHTVariable,
@@ -169,7 +173,32 @@ function iht!(
     iter  :: Int = 1,
     nstep :: Int = 50,
 )
-  return (12, 13)
+    μ = norm(v.b, 2)^2 / norm(v.df, 2)^2 
+    ω = norm(v.b - v.b0, 2)^2 / norm(v.xb - v.xb0, 2)^2
+
+    println(v.b)
+    println(v.b0)
+
+    println(v.xb)
+    println(v.xb0)
+
+    println(μ)
+    println(ω)
+
+    return (μ, ω)
+
+    μ_step = 0
+    for i = 1:nstep
+        if μ < ω; break; end
+        μ /= 2 #step halving
+
+        # warn if mu falls below machine epsilon
+        μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")
+
+        μ_step += 1
+    end
+
+    return (μ, μ_step)
 end
 
 
