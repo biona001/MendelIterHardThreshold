@@ -197,8 +197,12 @@ function iht!(
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
-    # Proposes a new update β^{m+1} and xβ^{m+1}, need to first take gradient step: β+ = μ∇f(β)
-    BLAS.axpy!(μ, v.df, v.b) 
+    # In order to compute ω, need β^{m+1} and xβ^{m+1}. So first take gradient step (eq.5)
+    BLAS.axpy!(μ, v.df, v.b) #v.b = β - μ∇f(β)
+    project_k!(v.b, k)       #P_k( β - μ∇f(β) ): preserve top k components of b
+    v.idx .= v.b .!= 0       #find indices of new beta that are nonzero
+
+    #propose new update of xβ^{m+1} based on β^{m+1} just calculated
     A_mul_B!(v.xb, snpmatrix, v.b)
 
     #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
@@ -206,11 +210,19 @@ function iht!(
 
     μ_step = 0
     for i = 1:nstep
-        if μ < ω; break; end
-        μ /= 2 #step halving (i.e. line search)
+        if μ < ω; break; end #using c = 1 now
 
-        # warn if mu falls below machine epsilon
+        #step halving (i.e. line search) and warn if mu falls below machine epsilon
+        μ /= 2 
         μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")
+
+        # recompute gradient step
+        copy!(v.b, v.b0)
+        _iht_gradstep(v, mu, k)
+
+        # recompute xb
+        #PLINK.A_mul_B!(v.xb, x, v.b, v.idx, k, pids=pids)
+        PLINK.A_mul_B!(v.xb, x, v.b, v.idx, k)
 
         μ_step += 1
     end

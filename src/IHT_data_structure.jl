@@ -126,3 +126,26 @@ function fill_perm!(
 
     return nothing
 end
+
+"""
+    project_k!(x, k)
+
+This function projects a vector `x` onto the set S_k = { y in R^p : || y ||_0 <= k }.
+It does so by first finding the pivot `a` of the `k` largest components of `x` in magnitude.
+`project_k!` then thresholds `x` by `abs(a)`, sending small components to 0. 
+
+Arguments:
+
+- `b` is the vector to project.
+- `k` is the number of components of `b` to preserve.
+"""
+function project_k!(
+    x    :: Vector{Float64},
+    k    :: Int;
+)
+    a = select(x, k, by = abs, rev = true)
+    for i in eachindex(x) 
+        x[i] = abs(x[i]) < a ? 0.0 : x[i]
+    end
+    return nothing
+end
