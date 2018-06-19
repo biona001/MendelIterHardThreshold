@@ -4,6 +4,7 @@ using MendelBase
 using SnpArrays
 using IHT
 using DataFrames
+using Distances
 
 export IterHardThreshold
 
@@ -133,7 +134,7 @@ function L0_reg(
     #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
     #
     snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
-    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))]
+    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
 
     #
     # Begin IHT calculations
@@ -164,6 +165,8 @@ end #function L0_reg
 """
 Calculates the IHT step β+ = P_k(β - μ ∇f(β)). 
 Returns step size (μ), and number of times line search was done (μ_step). 
+
+Updates: idx, xk, gk, xgk, 
 """
 function iht!(
     v         :: IHTVariable,
@@ -173,39 +176,38 @@ function iht!(
     iter      :: Int = 1,
     nstep     :: Int = 50,
 )
-    # compute indices of nonzeroes in beta and store them in v.idx
+    # compute indices of nonzeroes in beta and store them in v.idx (also sets size of v.gk)
     _iht_indices(v, k)
 
-    # fill xk, which is just snpmatrix keeping only columns corresponding to non-0's of b
+    # fill v.xk, which stores columns of snpmatrix corresponding to non-0's of b
     v.xk[:, :] .= snpmatrix[:, v.idx]
 
-    # store only k largest components of gradient
+    # fill v.gk, which store only k largest components of gradient (v.df)
     # fill_perm!(v.gk, v.df, v.idx)  # gk = g[v.idx]
     v.gk .= v.df[v.idx]
 
-    # now compute X_k β_k and store result in xgk
+    # now compute X_k β_k and store result in v.xgk
     A_mul_B!(v.xgk, v.xk, v.gk)
 
     # warn if xgk only contains zeros
     all(v.xgk .≈ 0.0) && warn("Entire active set has values equal to 0")
 
-    #compute step size and another scalar needed for convergence guarantee
+    #compute step size and notify if step size too small
     μ = norm(v.gk, 2)^2 / norm(v.xgk, 2)^2 
-    ω = norm(v.b - v.b0, 2)^2 / norm(v.xb - v.xb0, 2)^2
-
-    # notify problems with step size
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
-    println(μ)
-    println(ω)
+    # Proposes a new update β^{m+1} and xβ^{m+1}, need to first take gradient step: β+ = μ∇f(β)
+    BLAS.axpy!(μ, v.df, v.b) 
+    A_mul_B!(v.xb, snpmatrix, v.b)
 
-    return (μ, ω)
+    #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
+    ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 
     μ_step = 0
     for i = 1:nstep
         if μ < ω; break; end
-        μ /= 2 #step halving
+        μ /= 2 #step halving (i.e. line search)
 
         # warn if mu falls below machine epsilon
         μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")

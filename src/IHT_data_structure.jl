@@ -9,8 +9,8 @@ struct IHTVariable
     xb   :: Vector{Float64}     # vector that holds x*b 
     xb0  :: Vector{Float64}     # previous xb in the mm step
     xk   :: Matrix{Float64}     # the n by k subset of the design matrix x corresponding to non-0 elements of b
-    gk   :: Vector{Float64}     # gk = df[idx] is a temporary array of length `k` that arises as part of the gradient calculations. I avoid doing full gradient calculations since most of `b` is zero.
-    xgk  :: Vector{Float64}     # x * gk also part of the gradient calculation
+    gk   :: Vector{Float64}     # Numerator of step size μ.   gk = df[idx] is a temporary array of length `k` that arises as part of the gradient calculations. I avoid doing full gradient calculations since most of `b` is zero. 
+    xgk  :: Vector{Float64}     # Demonimator of step size μ. x * gk also part of the gradient calculation 
     idx  :: BitArray{1}         # BitArray indices of nonzeroes in b for A_mul_B
     idx0 :: BitArray{1}         # previous iterate of idx
     r    :: Vector{Float64}     # n-vector of residuals
@@ -76,8 +76,8 @@ function _iht_indices(
     # set v.idx[i] = 1 if v.b[i] != 0 (i.e. find components of beta that are non-zero)
     v.idx .= v.b .!= 0
 
-    # if current vector is 0, then leave the k components of b corresponding to 
-    # the k largest components in the gradient unchanged, and set other components of b to 0. 
+    # if idx is the 0 vector, v.idx[i] = 1 if i is one of the k largest components
+    # of the gradient (stored in v.df), and set other components of idx to 0. 
     if sum(v.idx) == 0
         a = select(v.df, k, by=abs, rev=true) 
         v.idx[abs.(v.df) .>= abs(a)-2*eps()] .= true
