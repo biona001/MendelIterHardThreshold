@@ -68,7 +68,9 @@ end
 #     return(y) 
 # end
 
-# this function updates the BitArray indices for b
+"""
+this function updates the BitArray indices for b. 
+"""
 function _iht_indices(
     v :: IHTVariable,
     k :: Int
@@ -87,45 +89,45 @@ function _iht_indices(
     return nothing
 end
 
-"""
-    fill_perm!(x, y, idx) 
+# """
+#     fill_perm!(x, y, idx) 
 
-This subroutine fills a `k`-vector `x` from a `p`-vector `y` via an index vector `idx`.
-This variant admits BitArray index vectors.
+# This subroutine fills a `k`-vector `x` from a `p`-vector `y` via an index vector `idx`.
+# This variant admits BitArray index vectors.
 
-Arguments:
+# Arguments:
 
-- `x` is the `k`-vector to fill.
-- `y` is the `p`-vector to use in filling `x`.
-- `idx` is either a `BitArray` or `Int` vector` that indexes the components of `y` to put into `x`. If `idx` contains `Int`s, then only the first `k` indices are used. Otherwise, `fill_perm!()` traverses `idx` until it encounters `k` `true`s.
-"""
-function fill_perm!(
-    x   :: Vector{Float64},
-    y   :: Vector{Float64},
-    idx :: BitArray{1}
-)
-    # x should have one element per "true" in idx
-    k = length(x)
-    #@assert k == sum(idx)
+# - `x` is the `k`-vector to fill.
+# - `y` is the `p`-vector to use in filling `x`.
+# - `idx` is either a `BitArray` or `Int` vector` that indexes the components of `y` to put into `x`. If `idx` contains `Int`s, then only the first `k` indices are used. Otherwise, `fill_perm!()` traverses `idx` until it encounters `k` `true`s.
+# """
+# function fill_perm!(
+#     x   :: Vector{Float64},
+#     y   :: Vector{Float64},
+#     idx :: BitArray{1}
+# )
+#     # x should have one element per "true" in idx
+#     k = length(x)
+#     #@assert k == sum(idx)
     
-    # counter j is used to track the number of trues in idx
-    j = 0
+#     # counter j is used to track the number of trues in idx
+#     j = 0
 
-    # loop over entire vector idx
-    @inbounds for i in eachindex(idx) 
+#     # loop over entire vector idx
+#     @inbounds for i in eachindex(idx) 
 
-        # if current component of idx is a true, then increment j and fill x from y
-        if idx[i]
-            j += 1
-            x[j] = y[i]
-        end
+#         # if current component of idx is a true, then increment j and fill x from y
+#         if idx[i]
+#             j += 1
+#             x[j] = y[i]
+#         end
 
-        # once x has k components, then it is completely filled and we return it
-        j == k && return nothing
-    end
+#         # once x has k components, then it is completely filled and we return it
+#         j == k && return nothing
+#     end
 
-    return nothing
-end
+#     return nothing
+# end
 
 """
     project_k!(x, k)
@@ -145,7 +147,9 @@ function project_k!(
 )
     a = select(x, k, by = abs, rev = true)
     for i in eachindex(x) 
-        x[i] = abs(x[i]) < a ? 0.0 : x[i]
+        if abs(x[i]) < abs(a) 
+            x[i] = 0.0
+        end
     end
     return nothing
 end

@@ -8,7 +8,7 @@ using Distances
 
 export IterHardThreshold
 
-include("IHT_data_structure.jl")
+include("IHT_utilities.jl")
 
 """
 This is the wrapper function for the Iterative Hard Thresholding analysis option. 
@@ -197,10 +197,10 @@ function iht!(
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
-    # In order to compute ω, need β^{m+1} and xβ^{m+1}. So first take gradient step (eq.5)
-    BLAS.axpy!(μ, v.df, v.b) #v.b = β - μ∇f(β)
-    project_k!(v.b, k)       #P_k( β - μ∇f(β) ): preserve top k components of b
-    v.idx .= v.b .!= 0       #find indices of new beta that are nonzero
+    # In order to compute ω, need β^{m+1} and xβ^{m+1}. Following eq.5,
+    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
+    project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
+    _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
 
     #propose new update of xβ^{m+1} based on β^{m+1} just calculated
     A_mul_B!(v.xb, snpmatrix, v.b)
