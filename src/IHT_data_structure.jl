@@ -31,10 +31,10 @@ function IHTVariables(
     p    = x.snps + 1 #adding 1 because we need an intercept
     # pids = procs(x)
     # V    = typeof(y)
-    b    = Vector{Float64}(p,) 
-    df   = Vector{Float64}(p,) 
-    xb   = Vector{Float64}(n,) 
-    r    = Vector{Float64}(n,) 
+    b    = zeros(Float64, p)
+    df   = zeros(Float64, p)
+    xb   = zeros(Float64, n)
+    r    = zeros(Float64, n)
     b0   = zeros(Float64, p)
     xb0  = zeros(Float64, n)
     xk   = zeros(Float64, n, k)
@@ -67,3 +67,62 @@ end
 #     y = convert(Vector, Y[:,end])
 #     return(y) 
 # end
+
+# this function updates the BitArray indices for b
+function _iht_indices(
+    v :: IHTVariable,
+    k :: Int
+)
+    # set v.idx[i] = 1 if v.b[i] != 0 (i.e. find components of beta that are non-zero)
+    v.idx .= v.b .!= 0
+
+    # if current vector is 0, then leave the k components of b corresponding to 
+    # the k largest components in the gradient unchanged, and set other components of b to 0. 
+    if sum(v.idx) == 0
+        a = select(v.df, k, by=abs, rev=true) 
+        v.idx[abs.(v.df) .>= abs(a)-2*eps()] .= true
+        v.gk .= zeros(sum(v.idx))
+    end
+
+    return nothing
+end
+
+"""
+    fill_perm!(x, y, idx) 
+
+This subroutine fills a `k`-vector `x` from a `p`-vector `y` via an index vector `idx`.
+This variant admits BitArray index vectors.
+
+Arguments:
+
+- `x` is the `k`-vector to fill.
+- `y` is the `p`-vector to use in filling `x`.
+- `idx` is either a `BitArray` or `Int` vector` that indexes the components of `y` to put into `x`. If `idx` contains `Int`s, then only the first `k` indices are used. Otherwise, `fill_perm!()` traverses `idx` until it encounters `k` `true`s.
+"""
+function fill_perm!(
+    x   :: Vector{Float64},
+    y   :: Vector{Float64},
+    idx :: BitArray{1}
+)
+    # x should have one element per "true" in idx
+    k = length(x)
+    #@assert k == sum(idx)
+    
+    # counter j is used to track the number of trues in idx
+    j = 0
+
+    # loop over entire vector idx
+    @inbounds for i in eachindex(idx) 
+
+        # if current component of idx is a true, then increment j and fill x from y
+        if idx[i]
+            j += 1
+            x[j] = y[i]
+        end
+
+        # once x has k components, then it is completely filled and we return it
+        j == k && return nothing
+    end
+
+    return nothing
+end

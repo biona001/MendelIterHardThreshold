@@ -86,7 +86,9 @@ function iht_gwas(person::Person, snpdata::SnpData,
   pedigree_frame::DataFrame, keyword::Dict{AbstractString, Any})
     phenotype = convert(Array{Float64,1}, pedigree_frame[:Trait])
     
-    x = L0_reg(snpdata, phenotype, 10)
+    k = keyword["predictors"]
+
+    x = L0_reg(snpdata, phenotype, k)
     return x
 end
 
@@ -139,21 +141,18 @@ function L0_reg(
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
 
-    #compute the gradient once, and update v.xb to get the loop started
-    BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # save -X'(y - Xβ) to v.df
+    # calculate the gradient ∇f(β) 1 time. Future gradient calculations are done in iht!
+    BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ)
 
     for mm_iter = 1:max_iter
-        
-        # calculate the gradient ∇f(β)
-        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # save -X'(y - Xβ) to v.df
-
-        #calculate the step size μ 
-        (mu, mu_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
         # save values from previous iterate
         copy!(v.b0, v.b)   # b0 = b
         copy!(v.xb0, v.xb) # Xb0 = Xb
         loss = next_loss
+        
+        #calculate the step size μ 
+        (mu, mu_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
         return mu_step
     end
@@ -163,24 +162,40 @@ function L0_reg(
 end #function L0_reg
 
 """
-Calculates the IHT step size, and number of times line search was done. 
+Calculates the IHT step β+ = P_k(β - μ ∇f(β)). 
+Returns step size (μ), and number of times line search was done (μ_step). 
 """
 function iht!(
-    v     :: IHTVariable,
-    x     :: Matrix{Float64},
-    y     :: Vector{Float64},
-    k     :: Int;
-    iter  :: Int = 1,
-    nstep :: Int = 50,
+    v         :: IHTVariable,
+    snpmatrix :: Matrix{Float64},
+    y         :: Vector{Float64},
+    k         :: Int;
+    iter      :: Int = 1,
+    nstep     :: Int = 50,
 )
-    μ = norm(v.b, 2)^2 / norm(v.df, 2)^2 
+    # compute indices of nonzeroes in beta and store them in v.idx
+    _iht_indices(v, k)
+
+    # fill xk, which is just snpmatrix keeping only columns corresponding to non-0's of b
+    v.xk[:, :] .= snpmatrix[:, v.idx]
+
+    # store only k largest components of gradient
+    # fill_perm!(v.gk, v.df, v.idx)  # gk = g[v.idx]
+    v.gk .= v.df[v.idx]
+
+    # now compute X_k β_k and store result in xgk
+    A_mul_B!(v.xgk, v.xk, v.gk)
+
+    # warn if xgk only contains zeros
+    all(v.xgk .≈ 0.0) && warn("Entire active set has values equal to 0")
+
+    #compute step size and another scalar needed for convergence guarantee
+    μ = norm(v.gk, 2)^2 / norm(v.xgk, 2)^2 
     ω = norm(v.b - v.b0, 2)^2 / norm(v.xb - v.xb0, 2)^2
 
-    println(v.b)
-    println(v.b0)
-
-    println(v.xb)
-    println(v.xb0)
+    # notify problems with step size
+    isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
+    μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
     println(μ)
     println(ω)
