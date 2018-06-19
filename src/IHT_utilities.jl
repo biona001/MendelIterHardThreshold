@@ -142,8 +142,8 @@ Arguments:
 - `k` is the number of components of `b` to preserve.
 """
 function project_k!(
-    x    :: Vector{Float64},
-    k    :: Int;
+    x :: Vector{Float64},
+    k :: Int;
 )
     a = select(x, k, by = abs, rev = true)
     for i in eachindex(x) 
@@ -152,4 +152,24 @@ function project_k!(
         end
     end
     return nothing
+end
+
+
+function compute_ω(
+    v         :: IHTVariable,
+    snpmatrix :: Matrix{Float64}, 
+    μ         :: Float64,
+    k         :: Int
+)
+    # In order to compute ω, need β^{m+1} and xβ^{m+1}. Following eq.5,
+    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
+    project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
+    _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
+    sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
+
+    #compute xβ^{m+1} based on β^{m+1} just calculated 
+    A_mul_B!(v.xb, snpmatrix, v.b)
+
+    #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
+    return sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 end

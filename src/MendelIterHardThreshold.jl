@@ -197,19 +197,11 @@ function iht!(
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
-    # In order to compute ω, need β^{m+1} and xβ^{m+1}. Following eq.5,
-    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
-    project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
-    _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
-
-    #propose new update of xβ^{m+1} based on β^{m+1} just calculated
-    A_mul_B!(v.xb, snpmatrix, v.b)
-
-    #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
-    ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
-
+    #compute ω and check if μ < ω. If not, do line search by halving μ and checking again.
     μ_step = 0
     for i = 1:nstep
+        ω = compute_ω(v, snpmatrix, μ, k)
+
         if μ < ω; break; end #using c = 1 now
 
         #step halving (i.e. line search) and warn if mu falls below machine epsilon
@@ -218,11 +210,14 @@ function iht!(
 
         # recompute gradient step
         copy!(v.b, v.b0)
-        _iht_gradstep(v, mu, k)
+        BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
+        project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
+        _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
+        sum(v.idx) <= k || warn("more than k components of b non-zero. Check VERY DANGEROUS DARK SIDE HACK!")
 
-        # recompute xb
-        #PLINK.A_mul_B!(v.xb, x, v.b, v.idx, k, pids=pids)
-        PLINK.A_mul_B!(v.xb, x, v.b, v.idx, k)
+        # re-compute ω based on xβ^{m+1}
+        A_mul_B!(v.xb, snpmatrix, v.b)
+        ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 
         μ_step += 1
     end
