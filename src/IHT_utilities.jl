@@ -139,12 +139,13 @@ function use_A2_as_minor_allele(snpmatrix :: SnpArray)
     return matrix
 end
 
-# a function for determining whether or not to backtrack
+# a function for determining whether or not to backtrack. If all conditions are satisfied,
+# then we DONT do line search, which means _iht_backtrack need to return TRUE.
 function _iht_backtrack(
     v :: IHTVariable,
     ω :: Float64,
-    μ :: Float64,
+    μ :: Float64
 )
-    mu*ob > 0.99*ot && sum(v.idx) != 0 &&
+    μ < 0.01*ω && sum(v.idx) != 0 &&
     sum(xor.(v.idx,v.idx0)) != 0 
 end

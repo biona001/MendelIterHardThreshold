@@ -230,12 +230,8 @@ function iht!(
         #Take the gradient step and compute ω
         ω = compute_ω(v, snpmatrix, μ, k)
 
-        println(ω)
-
-        return 1.1111111 
-
         #exit loop if μ < ω where c = 0.01 for now
-        if !_iht_backtrack(v, ω, μ); break; end 
+        if _iht_backtrack(v, ω, μ); break; end 
 
         #step halving (i.e. line search) and warn if mu falls below machine epsilon
         μ /= 2 
@@ -253,6 +249,13 @@ function iht!(
         ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 
         μ_step += 1
+
+        println(μ_step)
+        println(μ)
+        println(v.b)
+        println(v.df)
+        println(v.idx)
+        return 1.00001
     end
 
     return (μ, μ_step)
