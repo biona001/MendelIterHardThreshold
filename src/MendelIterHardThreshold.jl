@@ -223,13 +223,12 @@ function iht!(
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
-    println(μ)
-    return 1.11
-
     #compute ω and check if μ < ω. If not, do line search by halving μ and checking again.
     μ_step = 0
     for i = 1:nstep
-        ω = compute_ω(v, snpmatrix, μ, k)
+
+        #Take the gradient step and compute ω
+        ω = compute_ω(v, snpmatrix, μ, k) 
 
         if μ < 0.01*ω; break; end #using c = 0.01 now
 

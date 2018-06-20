@@ -131,6 +131,11 @@ function project_k!(
     return nothing
 end
 
+"""
+Returns ω, a constant we need to bound the step size μ to guarantee convergence. 
+This function also takes the gradient step P_k(β - μ∇f(β)).
+"""
+
 function compute_ω(
     v         :: IHTVariable,
     snpmatrix :: Matrix{Float64}, 
@@ -141,6 +146,11 @@ function compute_ω(
     BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
     project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
     _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
+
+    println(v.df)
+    println(v.b)
+    println(v.idx)
+    return(1.111111111)
 
     # If the k'th largest component is not unique, warn the user. 
     sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
