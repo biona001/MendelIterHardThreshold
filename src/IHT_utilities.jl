@@ -1,4 +1,4 @@
-export IHTVariable, IHTVariables
+export IHTVariable, IHTVariables, use_A2_as_minor_allele, standardize_snpmatrix
 
 """
 Object to contain intermediate variables and temporary arrays. Used for cleaner code in L0_reg
@@ -174,4 +174,3 @@ function use_A2_as_minor_allele(snpmatrix :: SnpArray)
     end
     return matrix
 end
-

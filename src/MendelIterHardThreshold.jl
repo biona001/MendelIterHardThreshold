@@ -5,6 +5,7 @@ using SnpArrays
 using IHT
 using DataFrames
 using Distances
+using StatsBase
 
 export IterHardThreshold
 
@@ -130,31 +131,31 @@ function L0_reg(
     # initialize booleans
     converged = false             # scaled_norm < tol?
 
-    #
     #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
-    #
     # snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
     # snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
-    snpmatrix = use_A2_as_minor_allele(x.snpmatrix)
-    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))]
+    snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
+    snpmatrix = StatsBase.zscore(snpmatrix, 1) #standardizing the columns
+    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
+
+    println(snpmatrix[:, :])
 
     #
     # Begin IHT calculations
     #
-
-    println(v.r)
-    println(v.xb)   
-
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
 
-    println(v.r)
-    println(v.xb)
-
-    return(1.133456)
+    println(v.df)
 
     # calculate the gradient ∇f(β) 1 time. Future gradient calculations are done in iht!
-    BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ)
+    # BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) 
+    BLAS.gemv!('T', 1.0, snpmatrix, v.r, 1.0, v.df) # v.df = X'(y - Xβ) 
+
+
+    println(v.df)
+
+    return(34.567)
 
     for mm_iter = 1:max_iter
 
