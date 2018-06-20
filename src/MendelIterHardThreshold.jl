@@ -138,24 +138,15 @@ function L0_reg(
     snpmatrix = StatsBase.zscore(snpmatrix, 1) #standardizing the columns
     snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
 
-    println(snpmatrix[:, :])
-
     #
     # Begin IHT calculations
     #
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
 
-    println(v.df)
-
     # calculate the gradient ∇f(β) 1 time. Future gradient calculations are done in iht!
     # BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) 
     BLAS.gemv!('T', 1.0, snpmatrix, v.r, 1.0, v.df) # v.df = X'(y - Xβ) 
-
-
-    println(v.df)
-
-    return(34.567)
 
     for mm_iter = 1:max_iter
 
@@ -166,10 +157,6 @@ function L0_reg(
         
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
         (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
-
-        println(μ)
-        println(μ_step)
-
 
         # iht! gives us an updated x*b. Use it to recompute residuals and gradient
         v.r .= y .- v.xb
@@ -235,6 +222,9 @@ function iht!(
     μ = norm(v.gk, 2)^2 / norm(v.xgk, 2)^2 
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
+
+    println(μ)
+    return 1.11
 
     #compute ω and check if μ < ω. If not, do line search by halving μ and checking again.
     μ_step = 0
