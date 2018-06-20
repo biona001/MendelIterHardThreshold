@@ -133,14 +133,25 @@ function L0_reg(
     #
     #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
     #
-    snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
-    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
+    # snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
+    # snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
+    snpmatrix = use_A2_as_minor_allele(x.snpmatrix)
+    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))]
 
     #
     # Begin IHT calculations
     #
+
+    println(v.r)
+    println(v.xb)   
+
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
+
+    println(v.r)
+    println(v.xb)
+
+    return(1.133456)
 
     # calculate the gradient ∇f(β) 1 time. Future gradient calculations are done in iht!
     BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ)
@@ -152,12 +163,39 @@ function L0_reg(
         copy!(v.xb0, v.xb) # Xb0 = Xb
         loss = next_loss
         
-        #calculate the step size μ 
-        (mu, mu_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
+        #calculate the step size μ. Can we use v.xk instead of snpmatrix?
+        (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
-        return mu_step
+        println(μ)
+        println(μ_step)
+
+
+        # iht! gives us an updated x*b. Use it to recompute residuals and gradient
+        v.r .= y .- v.xb
+        # mask!(v.r, mask_n, 0, zero(T), n=n) #do we need this?
+        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) Can we use v.xk instead of snpmatrix?
+
+        # update loss, objective, gradient, and check objective is not NaN or Inf
+        next_loss = sum(abs2, v.r) / 2
+        !isnan(next_loss) || throw(error("Objective function is NaN, aborting..."))
+        !isinf(next_loss) || throw(error("Objective function is Inf, aborting..."))
+
+        println(mm_iter)
+
+
+        # track convergence
+        the_norm    = chebyshev(v.b, v.b0) #max(abs(x - y))
+        scaled_norm = the_norm / (norm(v.b0, Inf) + 1)
+        converged   = scaled_norm < tol
+
+        if converged
+
+            println(mm_iter)
+
+            return 11.11
+        end
+
     end
-
 
     return v.df
 end #function L0_reg
@@ -166,7 +204,7 @@ end #function L0_reg
 Calculates the IHT step β+ = P_k(β - μ ∇f(β)). 
 Returns step size (μ), and number of times line search was done (μ_step). 
 
-Updates: idx, xk, gk, xgk, 
+This function updates: b, xb, xk, gk, xgk, idx
 """
 function iht!(
     v         :: IHTVariable,
@@ -202,7 +240,7 @@ function iht!(
     for i = 1:nstep
         ω = compute_ω(v, snpmatrix, μ, k)
 
-        if μ < ω; break; end #using c = 1 now
+        if μ < 0.01*ω; break; end #using c = 0.01 now
 
         #step halving (i.e. line search) and warn if mu falls below machine epsilon
         μ /= 2 

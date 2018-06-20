@@ -45,29 +45,6 @@ function IHTVariables(
     return IHTVariable(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
 end
 
-#for testing purposes, keeping for future reference
-#taken from read_plink_data in data.jl in PLINK
-# function read_fam_file()
-#   #
-#   # read the FAM file
-#     #
-#     famfile = keyword["plink_input_basename"] * ".fam"
-#     Y = readdlm(famfile, ' ', header=false)
-#     #
-#     # check that the FAM file has six column
-#     #
-#     p = size(Y,2)
-#     p == 6 || throw(DimensionMismatch("FAM file does not have six columns, is it formatted correctly?"))
-#     #
-#     # in FAM file, the phenotype is the rightmost column 
-#     # initialize a SharedVector and fill it with the phenotype.
-#     # we cannot know for certain that Y is loaded as floating point
-#     # to be safe, explicitly convert the phenotype column to the correct type
-#     #
-#     y = convert(Vector, Y[:,end])
-#     return(y) 
-# end
-
 """
 this function updates the BitArray indices for b. 
 """
@@ -154,7 +131,6 @@ function project_k!(
     return nothing
 end
 
-
 function compute_ω(
     v         :: IHTVariable,
     snpmatrix :: Matrix{Float64}, 
@@ -165,6 +141,8 @@ function compute_ω(
     BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
     project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
     _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
+
+    # If the k'th largest component is not unique, warn the user. 
     sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
 
     #compute xβ^{m+1} based on β^{m+1} just calculated 
@@ -173,3 +151,27 @@ function compute_ω(
     #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
     return sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 end
+
+
+"""
+Function that converts a SnpArray (i.e. matrix of {0, 1}^2) to a matrix of float64, using
+A2 as the minor allele. We want this function because SnpArrays.jl uses the less frequent
+allele in each SNP as the minor allele, while PLINK.jl always uses A2 as the minor allele, 
+and it's nice if we could cross-compare the results. 
+
+This function is needed for testing purposes only. 
+"""
+function use_A2_as_minor_allele(snpmatrix :: SnpArray)
+    n, p = size(snpmatrix)
+    matrix = zeros(n, p)
+    for i in 1:p
+        for j in 1:n
+            if snpmatrix[j, i] == (0, 0); matrix[j, i] = 0.0; end
+            if snpmatrix[j, i] == (0, 1); matrix[j, i] = 1.0; end
+            if snpmatrix[j, i] == (1, 1); matrix[j, i] = 2.0; end
+            if snpmatrix[j, i] == (1, 0); matrix[j, i] = missing; end
+        end
+    end
+    return matrix
+end
+
