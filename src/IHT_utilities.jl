@@ -66,46 +66,6 @@ function _iht_indices(
     return nothing
 end
 
-# """
-#     fill_perm!(x, y, idx) 
-
-# This subroutine fills a `k`-vector `x` from a `p`-vector `y` via an index vector `idx`.
-# This variant admits BitArray index vectors.
-
-# Arguments:
-
-# - `x` is the `k`-vector to fill.
-# - `y` is the `p`-vector to use in filling `x`.
-# - `idx` is either a `BitArray` or `Int` vector` that indexes the components of `y` to put into `x`. If `idx` contains `Int`s, then only the first `k` indices are used. Otherwise, `fill_perm!()` traverses `idx` until it encounters `k` `true`s.
-# """
-# function fill_perm!(
-#     x   :: Vector{Float64},
-#     y   :: Vector{Float64},
-#     idx :: BitArray{1}
-# )
-#     # x should have one element per "true" in idx
-#     k = length(x)
-#     #@assert k == sum(idx)
-    
-#     # counter j is used to track the number of trues in idx
-#     j = 0
-
-#     # loop over entire vector idx
-#     @inbounds for i in eachindex(idx) 
-
-#         # if current component of idx is a true, then increment j and fill x from y
-#         if idx[i]
-#             j += 1
-#             x[j] = y[i]
-#         end
-
-#         # once x has k components, then it is completely filled and we return it
-#         j == k && return nothing
-#     end
-
-#     return nothing
-# end
-
 """
     project_k!(x, k)
 
@@ -147,11 +107,6 @@ function compute_ω(
     project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
     _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
 
-    println(v.df)
-    println(v.b)
-    println(v.idx)
-    return(1.111111111)
-
     # If the k'th largest component is not unique, warn the user. 
     sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
 
@@ -164,10 +119,9 @@ end
 
 
 """
-Function that converts a SnpArray (i.e. matrix of {0, 1}^2) to a matrix of float64, using
-A2 as the minor allele. We want this function because SnpArrays.jl uses the less frequent
-allele in each SNP as the minor allele, while PLINK.jl always uses A2 as the minor allele, 
-and it's nice if we could cross-compare the results. 
+Converts a SnpArray to a matrix of float64 using A2 as the minor allele. We want this function 
+because SnpArrays.jl uses the less frequent allele in each SNP as the minor allele, while PLINK.jl 
+always uses A2 as the minor allele, and it's nice if we could cross-compare the results. 
 
 This function is needed for testing purposes only. 
 """
@@ -183,4 +137,14 @@ function use_A2_as_minor_allele(snpmatrix :: SnpArray)
         end
     end
     return matrix
+end
+
+# a function for determining whether or not to backtrack
+function _iht_backtrack(
+    v :: IHTVariable,
+    ω :: Float64,
+    μ :: Float64,
+)
+    mu*ob > 0.99*ot && sum(v.idx) != 0 &&
+    sum(xor.(v.idx,v.idx0)) != 0 
 end

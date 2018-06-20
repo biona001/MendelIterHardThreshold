@@ -228,9 +228,14 @@ function iht!(
     for i = 1:nstep
 
         #Take the gradient step and compute ω
-        ω = compute_ω(v, snpmatrix, μ, k) 
+        ω = compute_ω(v, snpmatrix, μ, k)
 
-        if μ < 0.01*ω; break; end #using c = 0.01 now
+        println(ω)
+
+        return 1.1111111 
+
+        #exit loop if μ < ω where c = 0.01 for now
+        if !_iht_backtrack(v, ω, μ); break; end 
 
         #step halving (i.e. line search) and warn if mu falls below machine epsilon
         μ /= 2 
