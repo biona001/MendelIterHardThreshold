@@ -133,11 +133,10 @@ function L0_reg(
 
     #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
     # snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
-    # snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
     snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
     snpmatrix = StatsBase.zscore(snpmatrix, 1) #standardizing the columns
-    snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
-    backup_snpmatrix = deepcopy(snpmatrix)
+    # snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
+    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
 
     #
     # Begin IHT calculations
@@ -145,7 +144,6 @@ function L0_reg(
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
     v.r[mask_n .== 0] .= 0 #bit masking? idk why we need this yet
-
 
     # calculate the gradient v.df = X'(y - Xβ) one time. Future gradient calculations are done in iht!
     # Can we use v.xk instead of snpmatrix?
@@ -178,16 +176,16 @@ function L0_reg(
         converged   = scaled_norm < tol
 
         if converged
-
+            println(v.b)
+            println(countnz(v.b))
             println(mm_iter)
-            println(μ)
-            println(μ_step)
             return 11.11
         end
 
+        if mm_iter == max_iter
+            println("Did not converge!!!!! omg!!!!!")
+        end
     end
-
-    return v.df
 end #function L0_reg
 
 """

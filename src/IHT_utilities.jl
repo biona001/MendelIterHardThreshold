@@ -93,7 +93,6 @@ end
 
 """
 Returns ω, a constant we need to bound the step size μ to guarantee convergence. 
-This function also takes the gradient step P_k(β - μ∇f(β)).
 """
 
 function compute_ω!(
@@ -143,7 +142,7 @@ function _iht_backtrack(
 end
 
 """
-This function computes one gradient step in iht, i.e. P_k( β - μ∇f(β) )
+This function computes the gradient step P_k(β - μ∇f(β))
 """
 function _iht_gradstep(
     v  :: IHTVariable,

@@ -1,2 +1,2 @@
 using MendelIterHardThreshold
-IterHardThreshold("test_control.txt")
+IterHardThreshold("gwas 1 Control.txt")
