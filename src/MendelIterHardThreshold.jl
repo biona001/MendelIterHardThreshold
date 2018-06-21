@@ -158,6 +158,10 @@ function L0_reg(
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
         (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
+        println(μ)
+        println(μ_step)
+        return (1.1, 1.1)
+
         # iht! gives us an updated x*b. Use it to recompute residuals and gradient
         v.r .= y .- v.xb
         # mask!(v.r, mask_n, 0, zero(T), n=n) #do we need this?
@@ -167,9 +171,6 @@ function L0_reg(
         next_loss = sum(abs2, v.r) / 2
         !isnan(next_loss) || throw(error("Objective function is NaN, aborting..."))
         !isinf(next_loss) || throw(error("Objective function is Inf, aborting..."))
-
-        println(mm_iter)
-
 
         # track convergence
         the_norm    = chebyshev(v.b, v.b0) #max(abs(x - y))
@@ -249,13 +250,6 @@ function iht!(
         ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 
         μ_step += 1
-
-        println(μ_step)
-        println(μ)
-        println(v.b)
-        println(v.df)
-        println(v.idx)
-        return 1.00001
     end
 
     return (μ, μ_step)

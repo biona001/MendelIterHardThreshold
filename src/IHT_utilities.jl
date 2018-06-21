@@ -146,6 +146,6 @@ function _iht_backtrack(
     ω :: Float64,
     μ :: Float64
 )
-    μ < 0.01*ω && sum(v.idx) != 0 &&
+    μ < 0.99*ω && sum(v.idx) != 0 &&
     sum(xor.(v.idx,v.idx0)) != 0 
 end
