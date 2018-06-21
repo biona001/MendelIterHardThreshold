@@ -137,19 +137,22 @@ function L0_reg(
     snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
     snpmatrix = StatsBase.zscore(snpmatrix, 1) #standardizing the columns
     snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
+    backup_snpmatrix = deepcopy(snpmatrix)
 
     #
     # Begin IHT calculations
     #
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
     copy!(v.r, y)    #redisual = y-Xβ = y
+    v.r[mask_n .== 0] .= 0 #bit masking? idk why we need this yet
 
-    # calculate the gradient ∇f(β) 1 time. Future gradient calculations are done in iht!
-    # BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) 
-    BLAS.gemv!('T', 1.0, snpmatrix, v.r, 1.0, v.df) # v.df = X'(y - Xβ) 
+
+    # calculate the gradient v.df = X'(y - Xβ) one time. Future gradient calculations are done in iht!
+    # Can we use v.xk instead of snpmatrix?
+    # Why aren't we doing v.df = -X'(y - Xβ)?
+    At_mul_B!(v.df, snpmatrix, v.r) 
 
     for mm_iter = 1:max_iter
-
         # save values from previous iterate
         copy!(v.b0, v.b)   # b0 = b
         copy!(v.xb0, v.xb) # Xb0 = Xb
@@ -158,14 +161,11 @@ function L0_reg(
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
         (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
-        println("right after iht! calculation")
-        println(v.xb)
-        return (1.11, 1.1111)
-
         # iht! gives us an updated x*b. Use it to recompute residuals and gradient
         v.r .= y .- v.xb
-        # mask!(v.r, mask_n, 0, zero(T), n=n) #do we need this?
-        BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) Can we use v.xk instead of snpmatrix?
+        v.r[mask_n .== 0] .= 0 #bit masking, idk why we need this yet 
+
+        At_mul_B!(v.df, snpmatrix, v.r) # v.df = X'(y - Xβ) Can we use v.xk instead of snpmatrix?
 
         # update loss, objective, gradient, and check objective is not NaN or Inf
         next_loss = sum(abs2, v.r) / 2
@@ -180,7 +180,9 @@ function L0_reg(
         if converged
 
             println(mm_iter)
-            return "yes converged"
+            println(μ)
+            println(μ_step)
+            return 11.11
         end
 
     end
@@ -237,9 +239,6 @@ function iht!(
         μ /= 2 
         μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")
 
-        println("This should be the old xb because the b here was calculated based on μ")
-        println(v.xb)
-
         # recompute gradient step
         copy!(v.b, v.b0)
         _iht_gradstep(v, μ, k)
@@ -247,9 +246,6 @@ function iht!(
         # re-compute ω based on xβ^{m+1}
         A_mul_B!(v.xb, snpmatrix, v.b)
         ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
-
-        println("now xb should be divided by 2 since μ is")
-        println(v.xb)
 
         μ_step += 1
     end
