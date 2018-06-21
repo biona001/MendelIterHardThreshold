@@ -158,16 +158,14 @@ function L0_reg(
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
         (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
+        println("right after iht! calculation")
+        println(v.xb)
+        return (1.11, 1.1111)
+
         # iht! gives us an updated x*b. Use it to recompute residuals and gradient
         v.r .= y .- v.xb
         # mask!(v.r, mask_n, 0, zero(T), n=n) #do we need this?
         BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) Can we use v.xk instead of snpmatrix?
-
-        println(y)
-        println(v.xb)
-
-        return (1.11, 1.1111)
-
 
         # update loss, objective, gradient, and check objective is not NaN or Inf
         next_loss = sum(abs2, v.r) / 2
@@ -182,7 +180,7 @@ function L0_reg(
         if converged
 
             println(mm_iter)
-            return 11.11
+            return "yes converged"
         end
 
     end
@@ -225,33 +223,33 @@ function iht!(
     isfinite(μ) || throw(error("Step size is not finite, is active set all zero?"))
     μ <= eps(typeof(μ)) && warn("Step size $(μ) is below machine precision, algorithm may not converge correctly")
 
+    #Take the gradient step and compute ω. Note in order to compute ω, need β^{m+1} and xβ^{m+1} (eq5)
+    _iht_gradstep(v, μ, k)
+    ω = compute_ω!(v, snpmatrix) #is snpmatrix required? Or can I just use v.x
+
     #compute ω and check if μ < ω. If not, do line search by halving μ and checking again.
     μ_step = 0
     for i = 1:nstep
-
-        #Take the gradient step and compute ω
-        ω = compute_ω(v, snpmatrix, μ, k)
-
         #exit loop if μ < ω where c = 0.01 for now
         if _iht_backtrack(v, ω, μ); break; end 
 
-        #step halving (i.e. line search) and warn if mu falls below machine epsilon
+        #if μ >= ω, step half and warn if μ falls below machine epsilon
         μ /= 2 
         μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")
 
-        println("Reached here")
+        println("This should be the old xb because the b here was calculated based on μ")
         println(v.xb)
 
         # recompute gradient step
         copy!(v.b, v.b0)
-        BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
-        project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
-        _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
-        sum(v.idx) <= k || warn("more than k components of b non-zero. Check VERY DANGEROUS DARK SIDE HACK!")
+        _iht_gradstep(v, μ, k)
 
         # re-compute ω based on xβ^{m+1}
         A_mul_B!(v.xb, snpmatrix, v.b)
         ω = sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
+
+        println("now xb should be divided by 2 since μ is")
+        println(v.xb)
 
         μ_step += 1
     end

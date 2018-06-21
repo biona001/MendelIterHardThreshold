@@ -96,22 +96,11 @@ Returns ω, a constant we need to bound the step size μ to guarantee convergenc
 This function also takes the gradient step P_k(β - μ∇f(β)).
 """
 
-function compute_ω(
+function compute_ω!(
     v         :: IHTVariable,
     snpmatrix :: Matrix{Float64}, 
-    μ         :: Float64,
-    k         :: Int
 )
-    # In order to compute ω, need β^{m+1} and xβ^{m+1}. Following eq.5,
-    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
-    project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
-    _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
-
-    # If the k'th largest component is not unique, warn the user. 
-    sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
-
     #update v.xb
-    #compute xβ^{m+1} based on β^{m+1} just calculated 
     A_mul_B!(v.xb, snpmatrix, v.b)
 
     #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
@@ -120,11 +109,11 @@ end
 
 
 """
+This function is needed for testing purposes only. 
+
 Converts a SnpArray to a matrix of float64 using A2 as the minor allele. We want this function 
 because SnpArrays.jl uses the less frequent allele in each SNP as the minor allele, while PLINK.jl 
 always uses A2 as the minor allele, and it's nice if we could cross-compare the results. 
-
-This function is needed for testing purposes only. 
 """
 function use_A2_as_minor_allele(snpmatrix :: SnpArray)
     n, p = size(snpmatrix)
@@ -140,8 +129,10 @@ function use_A2_as_minor_allele(snpmatrix :: SnpArray)
     return matrix
 end
 
-# a function for determining whether or not to backtrack. If all conditions are satisfied,
-# then we DONT do line search, which means _iht_backtrack need to return TRUE.
+"""
+A function for determining whether or not to backtrack. If all conditions are satisfied,
+then we DONT do line search, which means _iht_backtrack need to return TRUE.
+"""
 function _iht_backtrack(
     v :: IHTVariable,
     ω :: Float64,
@@ -149,4 +140,20 @@ function _iht_backtrack(
 )
     μ < 0.99*ω && sum(v.idx) != 0 &&
     sum(xor.(v.idx,v.idx0)) != 0 
+end
+
+"""
+This function computes one gradient step in iht, i.e. P_k( β - μ∇f(β) )
+"""
+function _iht_gradstep(
+    v  :: IHTVariable,
+    μ  :: Float64,
+    k  :: Int;
+)
+    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
+    project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
+    _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
+
+    # If the k'th largest component is not unique, warn the user. 
+    sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
 end
