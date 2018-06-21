@@ -110,6 +110,7 @@ function compute_ω(
     # If the k'th largest component is not unique, warn the user. 
     sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
 
+    #update v.xb
     #compute xβ^{m+1} based on β^{m+1} just calculated 
     A_mul_B!(v.xb, snpmatrix, v.b)
 

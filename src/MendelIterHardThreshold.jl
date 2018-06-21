@@ -158,14 +158,16 @@ function L0_reg(
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
         (μ, μ_step) = iht!(v, snpmatrix, y, k, nstep=max_step, iter=mm_iter)
 
-        println(μ)
-        println(μ_step)
-        return (1.1, 1.1)
-
         # iht! gives us an updated x*b. Use it to recompute residuals and gradient
         v.r .= y .- v.xb
         # mask!(v.r, mask_n, 0, zero(T), n=n) #do we need this?
         BLAS.gemv!('T', -1.0, snpmatrix, v.r, 1.0, v.df) # v.df = -X'(y - Xβ) Can we use v.xk instead of snpmatrix?
+
+        println(y)
+        println(v.xb)
+
+        return (1.11, 1.1111)
+
 
         # update loss, objective, gradient, and check objective is not NaN or Inf
         next_loss = sum(abs2, v.r) / 2
@@ -180,7 +182,6 @@ function L0_reg(
         if converged
 
             println(mm_iter)
-
             return 11.11
         end
 
@@ -237,6 +238,9 @@ function iht!(
         #step halving (i.e. line search) and warn if mu falls below machine epsilon
         μ /= 2 
         μ <= eps(typeof(μ)) && warn("Step size equals zero, algorithm may not converge correctly")
+
+        println("Reached here")
+        println(v.xb)
 
         # recompute gradient step
         copy!(v.b, v.b0)
