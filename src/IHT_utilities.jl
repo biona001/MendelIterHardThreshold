@@ -27,8 +27,12 @@ function IHTVariables(
     y :: Vector{Float64},
     k :: Int64
 )
-    n    = x.people
-    p    = x.snps + 1 #adding 1 because we need an intercept
+    n, p = x.people, x.snps + 1 #adding 1 for p because we need an intercept
+
+    #check if k is sensible
+    if k > p;  throw(ArgumentError, "k cannot exceed the number of SNPs"); end
+    if k <= 0; throw(ArgumentError, "k must be positive integer"); end
+
     # pids = procs(x)
     # V    = typeof(y)
     b    = zeros(Float64, p)

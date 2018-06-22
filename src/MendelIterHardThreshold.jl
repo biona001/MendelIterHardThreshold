@@ -107,6 +107,10 @@ function L0_reg(
     max_iter :: Int     = 100,
     max_step :: Int     = 50,
 )
+
+    # start timer
+    tic()
+
     # first handle errors
     k        >= 0            || throw(ArgumentError("Value of k must be nonnegative!\n"))
     max_iter >= 0            || throw(ArgumentError("Value of max_iter must be nonnegative!\n"))
@@ -131,12 +135,11 @@ function L0_reg(
     # initialize booleans
     converged = false             # scaled_norm < tol?
 
-    #convert bitarrays to Float64 genotype matrix, and add a column of ones for intercept
-    # snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
-    snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
-    snpmatrix = StatsBase.zscore(snpmatrix, 1) #standardizing the columns
-    # snpmatrix = [snpmatrix ones(size(snpmatrix, 1))] #add intercept at the end instead of front?
-    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
+    #convert bitarrays to Float64 genotype matrix, standardize each SNP, and add intercept
+    snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
+    # snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
+    snpmatrix = StatsBase.zscore(snpmatrix, 1) 
+    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix] 
 
     #
     # Begin IHT calculations
@@ -176,14 +179,24 @@ function L0_reg(
         converged   = scaled_norm < tol
 
         if converged
-            println(v.b)
-            println(countnz(v.b))
-            println(mm_iter)
-            return 11.11
+            # stop time
+            mm_time = toq()
+
+            println("IHT converged in " * string(mm_iter) * " iterations")
+            println("It took " * string(mm_time) * " seconds to converge")
+            println("The estimated model is: " * string(v.b))
+            println("There are " * string(countnz(v.b)) * " non-zero entries of β")
+            return v.b
         end
 
         if mm_iter == max_iter
+            # stop time
+            mm_time = toq()
+
             println("Did not converge!!!!! omg!!!!!")
+            println("It took " * string(mm_time) * " seconds to run IHT (in vain)")
+
+            return nothing
         end
     end
 end #function L0_reg
