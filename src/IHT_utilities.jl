@@ -1,4 +1,5 @@
 export IHTVariable, IHTVariables, use_A2_as_minor_allele, standardize_snpmatrix
+export use_A2_as_minor_allele, project_k!
 
 """
 Object to contain intermediate variables and temporary arrays. Used for cleaner code in L0_reg
@@ -50,27 +51,6 @@ function IHTVariables(
 end
 
 """
-this function updates the BitArray indices for b. 
-"""
-function _iht_indices(
-    v :: IHTVariable,
-    k :: Int
-)
-    # set v.idx[i] = 1 if v.b[i] != 0 (i.e. find components of beta that are non-zero)
-    v.idx .= v.b .!= 0
-
-    # if idx is the 0 vector, v.idx[i] = 1 if i is one of the k largest components
-    # of the gradient (stored in v.df), and set other components of idx to 0. 
-    if sum(v.idx) == 0
-        a = select(v.df, k, by=abs, rev=true) 
-        v.idx[abs.(v.df) .>= abs(a)-2*eps()] .= true
-        v.gk .= zeros(sum(v.idx))
-    end
-
-    return nothing
-end
-
-"""
     project_k!(x, k)
 
 This function projects a vector `x` onto the set S_k = { y in R^p : || y ||_0 <= k }.
@@ -109,7 +89,6 @@ function compute_ω!(
     #calculate ω efficiently (old b0 and xb0 have been copied before calling iht!)
     return sqeuclidean(v.b, v.b0) / sqeuclidean(v.xb, v.xb0)
 end
-
 
 """
 This function is needed for testing purposes only. 
@@ -159,4 +138,25 @@ function _iht_gradstep(
 
     # If the k'th largest component is not unique, warn the user. 
     sum(v.idx) <= k || warn("More than k components of b is non-zero! Need: VERY DANGEROUS DARK SIDE HACK!")
+end
+
+"""
+this function updates finds the non-zero index of b, and set v.idx = 1 for those indices. 
+"""
+function _iht_indices(
+    v :: IHTVariable,
+    k :: Int
+)
+    # set v.idx[i] = 1 if v.b[i] != 0 (i.e. find components of beta that are non-zero)
+    v.idx .= v.b .!= 0
+
+    # if idx is the 0 vector, v.idx[i] = 1 if i is one of the k largest components
+    # of the gradient (stored in v.df), and set other components of idx to 0. 
+    if sum(v.idx) == 0
+        a = select(v.df, k, by=abs, rev=true) 
+        v.idx[abs.(v.df) .>= abs(a)-2*eps()] .= true
+        v.gk .= zeros(sum(v.idx))
+    end
+
+    return nothing
 end
