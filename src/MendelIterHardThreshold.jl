@@ -62,7 +62,10 @@ function IterHardThreshold(control_file = ""; args...)
     #
     println(" \nAnalyzing the data.\n")
 ##
-    result = iht_gwas(person, snpdata, pedigree_frame, keyword)
+    phenotype = convert(Array{Float64,1}, pedigree_frame[:Trait])
+    k = keyword["predictors"]
+
+    result = L0_reg(snpdata, phenotype, k)
     return result
 ##
     # execution_error = iht_gwas(person, snpdata, pedigree_frame, keyword)
@@ -81,21 +84,7 @@ function IterHardThreshold(control_file = ""; args...)
 end #function IterHardThreshold
 
 """
-This function performs IHT on GWAS data. The overall strategy: Make IHTVariables, use that to 
-rewrite L0_reg, and modify iht!. Need to rewrite 3 functions in 3 weeks. 
-"""
-function iht_gwas(person::Person, snpdata::SnpData,
-  pedigree_frame::DataFrame, keyword::Dict{AbstractString, Any})
-    phenotype = convert(Array{Float64,1}, pedigree_frame[:Trait])
-    
-    k = keyword["predictors"]
-
-    x = L0_reg(snpdata, phenotype, k)
-    return x
-end
-
-"""
-Regression step
+This function performs IHT on GWAS data. 
 """
 function L0_reg(
     x        :: SnpData,
@@ -148,9 +137,11 @@ function L0_reg(
     copy!(v.r, y)    #redisual = y-Xβ = y
     v.r[mask_n .== 0] .= 0 #bit masking? idk why we need this yet
 
-    # calculate the gradient v.df = X'(y - Xβ) one time. Future gradient calculations are done in iht!
+    # calculate the gradient v.df = -X'(y - Xβ) = X'(-1*(Y-Xb)). Future gradient 
+    # calculations are done in iht!. Note the negative sign will be cancelled afterwards
+    # when we do b+ = P_k( b - μ∇f(b)) = P_k( b + μ(-∇f(b))) = P_k( b + μ*v.df)
+
     # Can we use v.xk instead of snpmatrix?
-    # Why aren't we doing v.df = -X'(y - Xβ)?
     At_mul_B!(v.df, snpmatrix, v.r) 
 
     for mm_iter = 1:max_iter
@@ -179,24 +170,19 @@ function L0_reg(
         converged   = scaled_norm < tol
 
         if converged
-            # stop time
-            mm_time = toq()
+            mm_time = toq()   # stop time
 
             println("IHT converged in " * string(mm_iter) * " iterations")
             println("It took " * string(mm_time) * " seconds to converge")
-            println("The estimated model is: " * string(v.b))
+            println("The estimated model is stored in 'beta'")
             println("There are " * string(countnz(v.b)) * " non-zero entries of β")
-            return v.b
+            return IHTResults(mm_time, next_loss, mm_iter, copy(v.b))
         end
 
         if mm_iter == max_iter
-            # stop time
-            mm_time = toq()
-
-            println("Did not converge!!!!! omg!!!!!")
-            println("It took " * string(mm_time) * " seconds to run IHT (in vain)")
-
-            return nothing
+            mm_time = toq() # stop time
+            throw(error("Did not converge!!!!! The run time for IHT was " * 
+                string(mm_time) * "seconds"))
         end
     end
 end #function L0_reg

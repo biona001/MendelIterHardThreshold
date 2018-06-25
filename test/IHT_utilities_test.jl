@@ -98,7 +98,7 @@ end
     p = sortperm(x, rev = true)
     top_k_index = p[1:k]
 	last_k_index = p[k+1:end]
-	project_k!(x, k)
+	MendelIterHardThreshold.project_k!(x, k)
 
 	@test all(x[top_k_index] .!= 0.0)
 	@test all(x[last_k_index] .== 0.0)
@@ -117,9 +117,35 @@ end
 end
 
 @testset "_iht_backtrack" begin
-    
+    (x, y, k, v) = gwas1_data()
+    μ, ω = 1.0, 1.0
+    @test MendelIterHardThreshold._iht_backtrack(v, ω, μ) == false
+
+    μ, ω = 0.2, 0.3
+    @test MendelIterHardThreshold._iht_backtrack(v, ω, μ) == true
+
+    μ, ω = 0.8, 0.792
+    @test MendelIterHardThreshold._iht_backtrack(v, ω, μ) == false
+
+    μ, ω = 0.5, 0.2
+    @test MendelIterHardThreshold._iht_backtrack(v, ω, μ) == false
+
+    μ, ω = 0.98, 1.0
+    @test MendelIterHardThreshold._iht_backtrack(v, ω, μ) == true
 end
 
 @testset "_iht_gradstep" begin
-    
+    (x, y, k, v) = test_data()
+    v.b .= rand(3)
+    v.df .= rand(3)
+    b = copy(v.b)
+    df = copy(v.df)
+    k = 2
+    μ = 0.9
+
+    MendelIterHardThreshold._iht_gradstep(v, μ, k)
+    @test v.b[1] == 0.0 # because first entry is smallest, it should be set to 0
+    @test v.b[2] == (b + μ*df)[2]
+    @test v.b[3] == (b + μ*df)[3]
 end
+

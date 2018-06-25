@@ -16,11 +16,6 @@ struct IHTVariable
     idx0 :: BitArray{1}         # previous iterate of idx
     r    :: Vector{Float64}     # n-vector of residuals
     df   :: Vector{Float64}     # the gradient: df = -x' * (y - xb)
-
-    # IHTVariable(b::DenseVector, b0::Vector{Float64}, xb::DenseVector, 
-    #   xb0::Vector{Float64}, xk::Matrix{Float64}, gk::Vector{Float64}, 
-    #   xgk::Vector{Float64}, idx::BitArray{1}, idx0::BitArray{1}, r::DenseVector, 
-    #   df::DenseVector) = new{Float64,DenseVector}(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
 end
 
 function IHTVariables(
@@ -34,8 +29,6 @@ function IHTVariables(
     if k > p;  throw(ArgumentError, "k cannot exceed the number of SNPs"); end
     if k <= 0; throw(ArgumentError, "k must be positive integer"); end
 
-    # pids = procs(x)
-    # V    = typeof(y)
     b    = zeros(Float64, p)
     df   = zeros(Float64, p)
     xb   = zeros(Float64, n)
@@ -48,6 +41,21 @@ function IHTVariables(
     idx  = falses(p) 
     idx0 = falses(p)
     return IHTVariable(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
+end
+
+immutable IHTResult
+    time :: Float64
+    loss :: Float64
+    iter :: Int64
+    beta :: Vector{Float64}
+end
+
+function IHTResults(
+    time :: Float64, 
+    loss :: Float64, 
+    iter :: Int64,
+    beta :: Vector{Float64})
+    return IHTResult(time, loss, iter, beta)
 end
 
 """
@@ -120,19 +128,21 @@ function _iht_backtrack(
     ω :: Float64,
     μ :: Float64
 )
-    μ < 0.99*ω && sum(v.idx) != 0 &&
-    sum(xor.(v.idx,v.idx0)) != 0 
+    μ < 0.99*ω 
+    #&& sum(v.idx) != 0 &&
+    #sum(xor.(v.idx,v.idx0)) != 0 
 end
 
 """
-This function computes the gradient step P_k(β - μ∇f(β))
+This function computes the gradient step v.b = P_k(β + μ∇f(β)), and updates v.idx. 
+Recall calling axpy! implies v.b = v.b + μ*v.df, but v.df stores an extra negative sign.
 """
 function _iht_gradstep(
     v  :: IHTVariable,
     μ  :: Float64,
     k  :: Int;
 )
-    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = β - μ∇f(β)
+    BLAS.axpy!(μ, v.df, v.b) # take the gradient step: v.b = b + μ∇f(b) (which is a plus since df stores X(-1*(Y-Xb)))
     project_k!(v.b, k)       # P_k( β - μ∇f(β) ): preserve top k components of b
     _iht_indices(v, k)       # Update idx. (find indices of new beta that are nonzero)
 
