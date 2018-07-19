@@ -43,20 +43,47 @@ function IHTVariables(
     return IHTVariable(b, b0, xb, xb0, xk, gk, xgk, idx, idx0, r, df)
 end
 
-immutable IHTResult
-    time :: Float64
-    loss :: Float64
-    iter :: Int64
-    beta :: Vector{Float64}
+# immutable IHTResults
+#     time :: Float64
+#     loss :: Float64
+#     iter :: Int64
+#     beta :: Vector{Float64}
+# end
+
+# function IHTResults(
+#     time :: Float64, 
+#     loss :: Float64, 
+#     iter :: Int64,
+#     beta :: Vector{Float64})
+#     return IHTResult(time, loss, iter, beta)
+# end
+
+# an object that houses results returned from an IHT run
+immutable IHTResults{T <: Float64, V <: DenseVector}
+    time :: T
+    loss :: T
+    iter :: Int
+    beta :: V
+
+    #IHTResults{T,V}(time::T, loss::T, iter::Int, beta::V) where {T <: Float, V <: DenseVector{T}} = new{T,V}(time, loss, iter, beta)
+    IHTResults{T,V}(time, loss, iter, beta) where {T <: Float64, V <: DenseVector{T}} = new{T,V}(time, loss, iter, beta)
 end
 
-function IHTResults(
-    time :: Float64, 
-    loss :: Float64, 
-    iter :: Int64,
-    beta :: Vector{Float64})
-    return IHTResult(time, loss, iter, beta)
+# strongly typed external constructor for IHTResults
+IHTResults(time::T, loss::T, iter::Int, beta::V) where {T <: Float64, V <: DenseVector{T}} = IHTResults{T, V}(time, loss, iter, beta)
+
+
+# function to display IHTResults object
+function Base.show(io::IO, x::IHTResults)
+    println(io, "IHT results:")
+    println(io, "\nCompute time (sec):   ", x.time)
+    println(io, "Final loss:           ", x.loss)
+    println(io, "Iterations:           ", x.iter)
+    println(io, "IHT estimated ", countnz(x.beta), " nonzero coefficients.")
+    print(io, DataFrame(Predictor=find(x.beta), Estimated_β=x.beta[find(x.beta)]))
+    return nothing
 end
+
 
 """
     project_k!(x, k)

@@ -115,7 +115,7 @@ function L0_reg(
     current_obj = oftype(tol,Inf) # tracks previous objective function value
     the_norm    = 0.0             # norm(b - b0)
     scaled_norm = 0.0             # the_norm / (norm(b0) + 1)
-    mu          = 0.0             # Landweber step size, 0 < tau < 2/rho_max^2
+    μ           = 0.0             # Landweber step size, 0 < tau < 2/rho_max^2
 
     # initialize integers
     i       = 0                   # used for iterations in loops
@@ -125,16 +125,23 @@ function L0_reg(
     converged = false             # scaled_norm < tol?
 
     #convert bitarrays to Float64 genotype matrix, standardize each SNP, and add intercept
-    snpmatrix = convert(Array{Float64,2}, x.snpmatrix)
-    # snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
-    snpmatrix = StatsBase.zscore(snpmatrix, 1) 
-    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix] 
+    snpmatrix = use_A2_as_minor_allele(x.snpmatrix) #to compare results with using PLINK
+
+    # snpmatrix = convert(Array{Float64,2}, x.snpmatrix) 
+    mean_vec = zeros(x.snps)
+    std_vec = zeros(x.snps)
+    for i in 1:size(snpmatrix, 2) 
+        mean_vec[i] = mean(snpmatrix[:, i])
+        std_vec[i] = 1.0 / std(snpmatrix[:, i])
+        snpmatrix[:, i] = (snpmatrix[:, i] .- mean(snpmatrix[:, i])) / std(snpmatrix[:, i]) 
+    end 
+    snpmatrix = [ones(size(snpmatrix, 1)) snpmatrix]
 
     #
     # Begin IHT calculations
     #
     fill!(v.xb, 0.0) #initialize β = 0 vector, so Xβ = 0
-    copy!(v.r, y)    #redisual = y-Xβ = y
+    copy!(v.r, y)    #redisual = y-Xβ = y  CONSIDER BLASCOPY!
     v.r[mask_n .== 0] .= 0 #bit masking? idk why we need this yet
 
     # calculate the gradient v.df = -X'(y - Xβ) = X'(-1*(Y-Xb)). Future gradient 
@@ -146,8 +153,8 @@ function L0_reg(
 
     for mm_iter = 1:max_iter
         # save values from previous iterate
-        copy!(v.b0, v.b)   # b0 = b
-        copy!(v.xb0, v.xb) # Xb0 = Xb
+        copy!(v.b0, v.b)   # b0 = b   CONSIDER BLASCOPY!
+        copy!(v.xb0, v.xb) # Xb0 = Xb  CONSIDER BLASCOPY!
         loss = next_loss
         
         #calculate the step size μ. Can we use v.xk instead of snpmatrix?
